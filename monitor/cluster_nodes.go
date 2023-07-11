@@ -13,7 +13,7 @@ import (
 func GetClusterNodes(cfg *config.Config) (types.ClustrNode, error) {
 	log.Println("Getting Cluster Nodes...")
 	ops := types.HTTPOptions{
-		Endpoint: cfg.Endpoints.RPCEndpoint,
+		Endpoint: cfg.Endpoints.NetworkRPC,
 		Method:   http.MethodPost,
 		Body:     types.Payload{Jsonrpc: "2.0", Method: "getClusterNodes", ID: 1},
 	}

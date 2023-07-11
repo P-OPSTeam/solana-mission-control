@@ -39,10 +39,11 @@ func GetIdentityBalance(cfg *config.Config) (types.Balance, error) {
 		return result, err
 	}
 
-	err = SendBalanceChangeAlert(result.Result.Value, cfg)
-	if err != nil {
-		log.Printf("Error while sending balance change alert : %v", err)
-	}
+	// sendBalanceChangeAlert query the prometheus DB which is not necessarily available
+	//err = SendBalanceChangeAlert(result.Result.Value, cfg)
+	//if err != nil {
+	//	log.Printf("Error while sending balance change alert : %v", err)
+	//}
 
 	return result, nil
 }
