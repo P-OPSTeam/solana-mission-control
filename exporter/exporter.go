@@ -132,7 +132,7 @@ func NewSolanaCollector(cfg *config.Config) *solanaCollector {
 		txCount: prometheus.NewDesc(
 			"solana_tx_count",
 			"solana transaction count",
-			[]string{"solana_tx_count"}, nil,
+			[]string{"votekey", "pubkey"}, nil,
 		),
 		netVoteHeight: prometheus.NewDesc(
 			"solana_network_vote_height",
@@ -522,9 +522,8 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 
 	// get tx count
 	count, _ := monitor.GetTxCount(c.config)
-	txcount := utils.NearestThousandFormat(float64(count.Result))
 
-	ch <- prometheus.MustNewConstMetric(c.txCount, prometheus.GaugeValue, float64(count.Result), txcount)
+	ch <- prometheus.MustNewConstMetric(c.txCount, prometheus.GaugeValue, float64(count.Result), c.config.ValDetails.VoteKey, c.config.ValDetails.PubKey)
 }
 
 // getClusterNodeInfo returns gossip address of node
