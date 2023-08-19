@@ -22,7 +22,7 @@ func GetLeaderSlots(epochSlot int64, cfg *config.Config) (map[int64]string, erro
 
 	resp, err := HitHTTPTarget(ops)
 	if err != nil {
-		log.Printf("Error while getting leader shedules: %v", err)
+		log.Printf("GetLeaderSlots - Error while getting leader shedules: %v", err)
 		return nil, err
 	}
 

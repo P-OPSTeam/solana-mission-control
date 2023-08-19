@@ -180,11 +180,13 @@ func (c *solanaCollector) WatchSlots(cfg *config.Config) {
 		// Get identity account balance
 		bal, err := monitor.GetIdentityBalance(cfg)
 		if err != nil {
-			log.Printf("Error while getting account balance : %v", err)
-			// continue
+			log.Printf("Balance set to 0. Error while getting account balance : %v", err)
+			balance.Set(0)
+		} else {
+			balance.Set(float64(bal.Result.Value) / math.Pow(10, 9))
 		}
 
-		balance.Set(float64(bal.Result.Value) / math.Pow(10, 9))
+		
 
 		// Get skip rate of validator and network using solana cli command
 		valSkip, netSkip, err := monitor.SkipRate(cfg)
@@ -212,79 +214,77 @@ func (c *solanaCollector) WatchSlots(cfg *config.Config) {
 		if err != nil {
 			log.Printf("failed to fetch epoch info of network, retrying: %v", err)
 			// continue
+		} else {
+			networkEpoch.Set(float64(resp.Result.Epoch))             // Set nw epoch
+			networkBlockHeight.Set(float64(resp.Result.BlockHeight)) // set nw block height
+			// Calculate first and last slot in network epoch.
+			netFirstSlot := resp.Result.AbsoluteSlot - resp.Result.SlotIndex
+			netLastSlot := netFirstSlot + resp.Result.SlotsInEpoch
+			networkEpochLastSlot.Set(float64(netLastSlot)) // set confirmed epoch last slock - network
 		}
-
-		networkEpoch.Set(float64(resp.Result.Epoch))             // Set nw epoch
-		networkBlockHeight.Set(float64(resp.Result.BlockHeight)) // set nw block height
-
-		// Calculate first and last slot in network epoch.
-		netFirstSlot := resp.Result.AbsoluteSlot - resp.Result.SlotIndex
-		netLastSlot := netFirstSlot + resp.Result.SlotsInEpoch
-		networkEpochLastSlot.Set(float64(netLastSlot)) // set confirmed epoch last slock - network
-
 		// Get recent block production details
 		bp, err := monitor.BlockProduction(cfg)
 		if err != nil {
 			log.Printf("Error while getting block production details : %v", err)
+		} else {
+			leaderSlots.Set(float64(bp.LeaderSlots))
+			totalSlots.Set(float64(bp.TotalSlots))
+			valBlocksProduced.Set(float64(bp.BlocksProduced))
+			totalBlocksProduced.Set(float64(bp.TotalBlocksProduced))
+			skippdSlots.Set(float64(bp.SkippedSlots))
+			skippedTotal.Set(float64(bp.TotalSlotsSkipped))
 		}
-
-		leaderSlots.Set(float64(bp.LeaderSlots))
-		totalSlots.Set(float64(bp.TotalSlots))
-		valBlocksProduced.Set(float64(bp.BlocksProduced))
-		totalBlocksProduced.Set(float64(bp.TotalBlocksProduced))
-		skippdSlots.Set(float64(bp.SkippedSlots))
-		skippedTotal.Set(float64(bp.TotalSlotsSkipped))
 
 		// Get validator epoch info
 		resp, err = monitor.GetEpochInfo(cfg, utils.Validator)
 		if err != nil {
 			log.Printf("failed to fetch epoch info of validator, retrying: %v", err)
 			// continue
-		}
-		info := resp.Result
+		} else {
+			info := resp.Result
+			// Calculate first and last slot in epoch.
+			firstSlot := info.AbsoluteSlot - info.SlotIndex
+			lastSlot := firstSlot + info.SlotsInEpoch
+			confirmedSlotHeight.Set(float64(info.AbsoluteSlot))
+			currentEpochNumber.Set(float64(info.Epoch))
+			epochFirstSlot.Set(float64(firstSlot))
+			epochLastSlot.Set(float64(lastSlot))
+			valBlockHeight.Set(float64(info.BlockHeight))
 
-		// Calculate first and last slot in epoch.
-		firstSlot := info.AbsoluteSlot - info.SlotIndex
-		lastSlot := firstSlot + info.SlotsInEpoch
-		confirmedSlotHeight.Set(float64(info.AbsoluteSlot))
-		currentEpochNumber.Set(float64(info.Epoch))
-		epochFirstSlot.Set(float64(firstSlot))
-		epochLastSlot.Set(float64(lastSlot))
-		valBlockHeight.Set(float64(info.BlockHeight))
+			log.Printf("Block Height: %d", info.BlockHeight)
 
-		log.Printf("Block Height: %d", info.BlockHeight)
+			// Calculate epoch difference of network and validator
+			diff := float64(resp.Result.Epoch) - float64(info.Epoch)
+			epochDifference.Set(diff) // set epoch diff to prometheus
 
-		// Calculate epoch difference of network and validator
-		diff := float64(resp.Result.Epoch) - float64(info.Epoch)
-		epochDifference.Set(diff) // set epoch diff to prometheus
-
-		if strings.EqualFold(cfg.AlerterPreferences.EpochDiffAlerts, "yes") && int64(diff) >= cfg.AlertingThresholds.EpochDiffThreshold && int64(diff) > 0 {
-			// send alert
-			err = alerter.SendTelegramAlert(fmt.Sprintf("Epoch Difference Alert : Difference b/w network and validator epoch has exceeded the configured thershold %d", cfg.AlertingThresholds.EpochDiffThreshold), cfg)
-			if err != nil {
-				log.Printf("Error while sending epoch diff alert to telegram: %v", err)
-			}
-			// send email alert
-			err = alerter.SendEmailAlert(fmt.Sprintf("Epoch Difference Alert : Difference b/w network and validator epoch has exceeded the configured thershold %d", cfg.AlertingThresholds.EpochDiffThreshold), cfg)
-			if err != nil {
-				log.Printf("Error while sending epoch diff alert to email: %v", err)
-			}
-		}
-
-		heightDiff := float64(resp.Result.BlockHeight) - float64(info.BlockHeight)
-		blockDiff.Set(heightDiff) // block height difference of network and validator
-
-		if int64(heightDiff) >= cfg.AlertingThresholds.BlockDiffThreshold {
-			// send telegram alert
-			err = alerter.SendTelegramAlert(fmt.Sprintf("Block Difference Alert : Block difference b/w network and validator has exceeded %d", cfg.AlertingThresholds.BlockDiffThreshold), cfg)
-			if err != nil {
-				log.Printf("Error while sending block height diff alert to telegram: %v", err)
+			if strings.EqualFold(cfg.AlerterPreferences.EpochDiffAlerts, "yes") && int64(diff) >= cfg.AlertingThresholds.EpochDiffThreshold && int64(diff) > 0 {
+				// send alert
+				err = alerter.SendTelegramAlert(fmt.Sprintf("Epoch Difference Alert : Difference b/w network and validator epoch has exceeded the configured thershold %d", cfg.AlertingThresholds.EpochDiffThreshold), cfg)
+				if err != nil {
+					log.Printf("Error while sending epoch diff alert to telegram: %v", err)
+				}
+				// send email alert
+				err = alerter.SendEmailAlert(fmt.Sprintf("Epoch Difference Alert : Difference b/w network and validator epoch has exceeded the configured thershold %d", cfg.AlertingThresholds.EpochDiffThreshold), cfg)
+				if err != nil {
+					log.Printf("Error while sending epoch diff alert to email: %v", err)
+				}
 			}
 
-			// send email alert
-			err = alerter.SendEmailAlert(fmt.Sprintf("Block Difference Alert : Block difference b/w network and validator has exceeded %d", cfg.AlertingThresholds.BlockDiffThreshold), cfg)
-			if err != nil {
-				log.Printf("Error while sending block height diff alert to email: %v", err)
+			heightDiff := float64(resp.Result.BlockHeight) - float64(info.BlockHeight)
+			blockDiff.Set(heightDiff) // block height difference of network and validator
+
+			if int64(heightDiff) >= cfg.AlertingThresholds.BlockDiffThreshold {
+				// send telegram alert
+				err = alerter.SendTelegramAlert(fmt.Sprintf("Block Difference Alert : Block difference b/w network and validator has exceeded %d", cfg.AlertingThresholds.BlockDiffThreshold), cfg)
+				if err != nil {
+					log.Printf("Error while sending block height diff alert to telegram: %v", err)
+				}
+
+				// send email alert
+				err = alerter.SendEmailAlert(fmt.Sprintf("Block Difference Alert : Block difference b/w network and validator has exceeded %d", cfg.AlertingThresholds.BlockDiffThreshold), cfg)
+				if err != nil {
+					log.Printf("Error while sending block height diff alert to email: %v", err)
+				}
 			}
 		}
 	}

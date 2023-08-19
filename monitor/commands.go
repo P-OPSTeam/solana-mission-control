@@ -117,14 +117,16 @@ func GetStatus(cfg *config.Config) string {
 	valHeight, err := GetEpochInfo(cfg, utils.Validator)
 	if err != nil {
 		log.Printf("Error while getting val block height res : %v", err)
+	} else {
+		msg = msg + fmt.Sprintf("Validator block height : %d\n", valHeight.Result.BlockHeight)
 	}
-	msg = msg + fmt.Sprintf("Validator block height : %d\n", valHeight.Result.BlockHeight)
 
 	networkHeight, err := GetEpochInfo(cfg, utils.Network)
 	if err != nil {
 		log.Printf("Error while getting network block height res : %v", err)
+	} else {
+		msg = msg + fmt.Sprintf("Network  block height : %d\n", networkHeight.Result.BlockHeight)
 	}
-	msg = msg + fmt.Sprintf("Network  block height : %d\n", networkHeight.Result.BlockHeight)
 
 	return msg
 }
@@ -149,16 +151,17 @@ func NodeStatus(cfg *config.Config) string {
 
 // GetAccountBal which resturns the account balance for the command /balance
 func GetAccountBal(cfg *config.Config) string {
-	var msg string
+	var msg, b string
 
 	res, err := GetIdentityBalance(cfg)
 	if err != nil {
-		log.Printf("Error while getting account balance : %v", err)
+		log.Printf("Balance set to 0. Error while getting account balance : %v", err)
+		b = "0"
+	} else {
+		bal := float64(res.Result.Value) / math.Pow(10, 9)
+		b = fmt.Sprintf("%.2f", bal)
 	}
-	bal := float64(res.Result.Value) / math.Pow(10, 9)
-	b := fmt.Sprintf("%.2f", bal)
 	msg = fmt.Sprintf("Your account balance is %s SOL\n", b)
-
 	return msg
 }
 
@@ -169,6 +172,7 @@ func GetEpochDetails(cfg *config.Config) string {
 	valEpoch, err := GetEpochInfo(cfg, utils.Validator)
 	if err != nil {
 		log.Printf("Error while getting val epoch info : %v", err)
+		return "GetEpochDetails ended with error"
 	}
 
 	msg = fmt.Sprintf("Current Epoch Info :: \n")
@@ -178,6 +182,7 @@ func GetEpochDetails(cfg *config.Config) string {
 	netEpoch, err := GetEpochInfo(cfg, utils.Network)
 	if err != nil {
 		log.Printf("Error while getting network epoch info : %v", err)
+		return "GetEpochDetails ended with error"
 	}
 
 	msg = msg + fmt.Sprintf("Network Epoch : %d\n", netEpoch.Result.Epoch)
