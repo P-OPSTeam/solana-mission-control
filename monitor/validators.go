@@ -35,7 +35,7 @@ func GetVoteAccounts(cfg *config.Config, node string) (types.GetVoteAccountsResp
 
 	resp, err := HitHTTPTarget(ops)
 	if err != nil {
-		log.Printf("Error while getting leader shedules: %v", err)
+		log.Printf("GetVoteAccounts - Error while getting leader shedules: %v", err)
 		return result, err
 	}
 
