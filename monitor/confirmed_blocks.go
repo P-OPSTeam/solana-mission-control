@@ -22,7 +22,7 @@ func GetConfirmedBlocks(rangeStart int64, rangeEnd int64, cfg *config.Config) ([
 	var cfm types.ConfirmedBlocks
 	resp, err := HitHTTPTarget(ops)
 	if err != nil {
-		log.Printf("Error while getting leader shedules: %v", err)
+		log.Printf("GetConfirmedBlocks - Error while getting leader shedules: %v", err)
 		return nil, err
 	}
 
