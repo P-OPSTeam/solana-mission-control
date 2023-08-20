@@ -465,7 +465,7 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 	// get current validator slot
 	slot, err := monitor.GetCurrentSlot(c.config, utils.Validator)
 	if err != nil {
-		log.Printf("Error while getting current sloc info : %v", err)
+		log.Printf("Error while getting current slot info : %v", err)
 	} else {
 		ch <- prometheus.MustNewConstMetric(c.currentSlot, prometheus.GaugeValue, float64(slot.Result))
 	}
