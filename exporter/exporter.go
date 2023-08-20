@@ -538,19 +538,20 @@ func (c *solanaCollector) getClusterNodeInfo() string {
 	return address
 }
 
-// getNetworkVoteAccountinfo returns last vote  information of  network vote account
+// getNetworkVoteAccountinfo returns last vote information of network vote account
 func (c *solanaCollector) getNetworkVoteAccountinfo() float64 {
 	resn, err := monitor.GetVoteAccounts(c.config, utils.Network)
 	var outN float64
 	if err != nil {
+		log.Printf("Error getting last vote information of network vote account : %v", err)
+		return 0
+	} else {
 		for _, vote := range resn.Result.Current {
 			if vote.NodePubkey == c.config.ValDetails.PubKey {
 				outN = float64(vote.LastVote)
 			}
 		}
-		return outN
-	} else {
-		return 0
+		return outN		
 	}
 }
 
