@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os/exec"
 
 	"github.com/Chainflow/solana-mission-control/config"
 	"github.com/Chainflow/solana-mission-control/types"
@@ -50,4 +51,47 @@ func GetVoteAccounts(cfg *config.Config, node string) (types.GetVoteAccountsResp
 	}
 
 	return result, nil
+}
+
+// return validator epochCredit and networkEpochCredit
+func GetEpochCredits(cfg *config.Config) (float64, float64, error) {
+	log.Println("Getting Epoch Credit...")
+	var countNonZeroEpochCreditValidator int
+	var valEpochCredit, netEpochCredit, avgnetEpochCredit float64
+
+	if solanaBinaryPath == "" {
+		solanaBinaryPath = "solana"
+	}
+
+	log.Printf("Solana binary path : %s", solanaBinaryPath)
+
+	cmd := exec.Command(solanaBinaryPath, "validators", "--output", "json")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		log.Printf("Error while running solana validators cli command %v", err)
+		return valEpochCredit, avgnetEpochCredit, err
+	}
+
+	var result types.SkipRate
+	err = json.Unmarshal(out, &result)
+	if err != nil {
+		log.Printf("Error: %v", err)
+		return valEpochCredit, avgnetEpochCredit, err
+	}
+
+	for _, val := range result.Validators {
+		if val.IdentityPubkey == cfg.ValDetails.PubKey {
+			valEpochCredit = float64(val.EpochCredits)
+		}
+		netEpochCredit = netEpochCredit + float64(val.EpochCredits)
+		if (val.EpochCredits != 0) {
+			countNonZeroEpochCreditValidator ++
+		}
+	}
+
+	avgnetEpochCredit = netEpochCredit / float64(countNonZeroEpochCreditValidator)
+
+	log.Printf("VAL epochCredit : %f, AVG Network epochCredit : %f", valEpochCredit, avgnetEpochCredit)
+
+	return valEpochCredit, avgnetEpochCredit, nil
 }
