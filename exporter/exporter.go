@@ -154,13 +154,13 @@ func NewSolanaCollector(cfg *config.Config) *solanaCollector {
 		),
 		valVotingStatus: prometheus.NewDesc(
 			"solana_val_status",
-			"solana validator voting status i.e., voting or jailed.",
+			"solana validator voting status i.e., voting or jailed",
 			[]string{"solana_val_status"}, nil,
 		),
 		voteCredits: prometheus.NewDesc(
 			"solana_vote_credits",
-			"solana validator vote credits of previous and current epoch.",
-			[]string{"solana_current_credits", "solana_previous_credits"}, nil,
+			"solana validator vote credits with a epoch_moment of previous or current",
+			[]string{"epoch_moment"}, nil,
 		),
 		networkBlockTime: prometheus.NewDesc(
 			"solana_network_confirmed_time",
@@ -308,7 +308,14 @@ func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response 
 
 			// calcualte vote credits
 			cCredits, pCredits := c.calcualteEpochVoteCredits(vote.EpochCredits)
-			ch <- prometheus.MustNewConstMetric(c.voteCredits, prometheus.GaugeValue, 1, cCredits, pCredits)
+			cCreditsfloat, err := strconv.ParseFloat(cCredits, 64)
+			if err == nil {
+				ch <- prometheus.MustNewConstMetric(c.voteCredits, prometheus.GaugeValue, cCreditsfloat, "current")
+			}
+			pCreditsfloat, err := strconv.ParseFloat(pCredits, 64)
+			if err == nil {
+				ch <- prometheus.MustNewConstMetric(c.voteCredits, prometheus.GaugeValue, pCreditsfloat, "previous")
+			}
 
 		}
 	}
