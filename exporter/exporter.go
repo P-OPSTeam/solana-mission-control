@@ -454,7 +454,10 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 	bal, err := monitor.GetIdentityBalance(c.config)
 	if err != nil {
 		//ch <- prometheus.NewInvalidMetric(c.accountBalance, err)
-	} else {
+	} else if bal.Result.Value != 0 {
+		// a getBalance RPC error response has no "result" field, so it unmarshals
+		// into a zero-value Result with err == nil. Skip the scrape instead of
+		// reporting a false 0 balance (mirrors the vote account guard below).
 		log.Printf("Identity account bal : %d", bal.Result.Value)
 		b := float64(bal.Result.Value) / math.Pow(10, 9)
 
