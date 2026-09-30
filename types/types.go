@@ -153,7 +153,7 @@ type (
 	VoteAccount struct {
 		ActivatedStake   int64     `json:"activatedStake"`
 		Commission       int64     `json:"commission"`
-		EpochCredits     [][]int64 `json:"epochCredits"`
+		EpochCredits     [][]uint64 `json:"epochCredits"`
 		EpochVoteAccount bool      `json:"epochVoteAccount"`
 		LastVote         int       `json:"lastVote"`
 		NodePubkey       string    `json:"nodePubkey"`
@@ -244,24 +244,27 @@ type (
 		} `json:"result"`
 	}
 
-	// SkipRate is a strut which holds the response of validators skip rate details
-	SkipRate struct {
-		TotalActiveStake     int64 `json:"totalActiveStake"`
-		TotalCurrentStake    int64 `json:"totalCurrentStake"`
-		TotalDelinquentStake int64 `json:"totalDelinquentStake"`
-		Validators           []struct {
+	// SkipRateValidator is a single validator entry of the validators cli output
+	SkipRateValidator struct {
 			IdentityPubkey    string  `json:"identityPubkey"`
 			VoteAccountPubkey string  `json:"voteAccountPubkey"`
 			Commission        int     `json:"commission"`
 			LastVote          int     `json:"lastVote"`
 			RootSlot          int     `json:"rootSlot"`
-			Credits           int     `json:"credits"`
-			EpochCredits      int     `json:"epochCredits"`
+			Credits           uint64  `json:"credits"`
+			EpochCredits      uint64  `json:"epochCredits"`
 			ActivatedStake    int64   `json:"activatedStake"`
 			Version           string  `json:"version"`
 			Delinquent        bool    `json:"delinquent"`
 			SkipRate          float64 `json:"skipRate"`
-		} `json:"validators"`
+	}
+
+	// SkipRate is a strut which holds the response of validators skip rate details
+	SkipRate struct {
+		TotalActiveStake     int64 `json:"totalActiveStake"`
+		TotalCurrentStake    int64 `json:"totalCurrentStake"`
+		TotalDelinquentStake int64 `json:"totalDelinquentStake"`
+		Validators           []SkipRateValidator `json:"validators"`
 		StakeByVersion interface{} `json:"stakeByVersion"`
 	}
 

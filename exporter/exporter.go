@@ -59,6 +59,8 @@ type solanaCollector struct {
 	localrpcstatus  	*prometheus.Desc
 	valEpochCredit  	*prometheus.Desc
 	netEpochCredit  	*prometheus.Desc
+	valEpochCreditPerStake *prometheus.Desc
+	netEpochCreditPerStake *prometheus.Desc
 }
 
 // NewSolanaCollector exports solana collector metrics to prometheus
@@ -194,12 +196,22 @@ func NewSolanaCollector(cfg *config.Config) *solanaCollector {
 		),
 		valEpochCredit: prometheus.NewDesc(
 			"solana_validator_epoch_credit",
-			"Current epoch validator credit",
+			"Current epoch validator credit (stake weighted since Alpenglow)",
 			[]string{"votekey", "pubkey"}, nil,
 		),
 		netEpochCredit: prometheus.NewDesc(
 			"solana_network_epoch_credit",
-			"Current epoch network average credit",
+			"Current epoch network average credit (stake weighted since Alpenglow)",
+			[]string{"votekey", "pubkey"}, nil,
+		),
+		valEpochCreditPerStake: prometheus.NewDesc(
+			"solana_validator_epoch_credit_per_stake",
+			"Current epoch validator credit per SOL of activated stake",
+			[]string{"votekey", "pubkey"}, nil,
+		),
+		netEpochCreditPerStake: prometheus.NewDesc(
+			"solana_network_epoch_credit_per_stake",
+			"Current epoch network stake weighted credit per SOL of activated stake",
 			[]string{"votekey", "pubkey"}, nil,
 		),
 	}
@@ -231,6 +243,8 @@ func (c *solanaCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.localrpcstatus
 	ch <- c.valEpochCredit
 	ch <- c.netEpochCredit
+	ch <- c.valEpochCreditPerStake
+	ch <- c.netEpochCreditPerStake
 }
 
 // mustEmitMetrics gets the data from Current and Deliquent validator vote accounts and export metrics of validator Vote account to prometheus.
@@ -353,18 +367,25 @@ func (c *solanaCollector) mustEmitMetrics(ch chan<- prometheus.Metric, response 
 }
 
 // calculateEpochVoteCredits returns epoch credits of vote account
-func (c *solanaCollector) calcualteEpochVoteCredits(credits [][]int64) (string, string) {
+func (c *solanaCollector) calcualteEpochVoteCredits(credits [][]uint64) (string, string) {
 	epochInfo, err := monitor.GetEpochInfo(c.config, utils.Validator)
-	var currentCredits, previousCredits, epoch int64
+	var epoch int64
 	if err != nil {
 		log.Printf("Set epoch to 0, Error while getting epoch info : %v", err)
-		epoch = 0
 	} else {
 		epoch = epochInfo.Result.Epoch
 	}
-	for _, c := range credits {
-		if len(c) >= 3 {
-			if c[0] == epoch {
+	return epochVoteCredits(credits, epoch)
+}
+
+// epochVoteCredits returns current and previous credits of the given epoch.
+// Alpenglow reports u64::MAX when credits are not available, in that case an
+// empty string is returned so the metric is skipped.
+func epochVoteCredits(credits [][]uint64, epoch int64) (string, string) {
+	var currentCredits, previousCredits uint64
+	if epoch >= 0 {
+		for _, c := range credits {
+			if len(c) >= 3 && c[0] == uint64(epoch) {
 				currentCredits = c[1]
 				previousCredits = c[2]
 			}
@@ -373,10 +394,13 @@ func (c *solanaCollector) calcualteEpochVoteCredits(credits [][]int64) (string, 
 
 	log.Printf("Current Epoch : %d\n Current Epoch Vote Credits: %d\n Previous Epoch Vote Credits : %d\n", epoch, currentCredits, previousCredits)
 
-	cCredits := strconv.FormatInt(currentCredits, 10)
-	pCredits := strconv.FormatInt(previousCredits, 10)
-
-	return cCredits, pCredits
+	format := func(v uint64) string {
+		if v == math.MaxUint64 {
+			return ""
+		}
+		return strconv.FormatUint(v, 10)
+	}
+	return format(currentCredits), format(previousCredits)
 }
 
 // AlertValidatorStatus sends validator status alerts at respective alert timings.
@@ -548,14 +572,15 @@ func (c *solanaCollector) Collect(ch chan<- prometheus.Metric) {
 		localrpcstatus, c.config.ValDetails.VoteKey, c.config.ValDetails.PubKey)
 
 	// get epoch Credits
-	valEpochCredit, netEpochCredit, err := monitor.GetEpochCredits(c.config)
+	credits, err := monitor.GetEpochCredits(c.config)
 	if err != nil {
 		log.Printf("Error while getting epoch Credit: %v", err)
 	}
-	ch <- prometheus.MustNewConstMetric(c.valEpochCredit, prometheus.GaugeValue,
-		valEpochCredit, c.config.ValDetails.VoteKey, c.config.ValDetails.PubKey)
-	ch <- prometheus.MustNewConstMetric(c.netEpochCredit, prometheus.GaugeValue,
-		netEpochCredit, c.config.ValDetails.VoteKey, c.config.ValDetails.PubKey)
+	labels := []string{c.config.ValDetails.VoteKey, c.config.ValDetails.PubKey}
+	ch <- prometheus.MustNewConstMetric(c.valEpochCredit, prometheus.GaugeValue, credits.Validator, labels...)
+	ch <- prometheus.MustNewConstMetric(c.netEpochCredit, prometheus.GaugeValue, credits.Network, labels...)
+	ch <- prometheus.MustNewConstMetric(c.valEpochCreditPerStake, prometheus.GaugeValue, credits.ValidatorPerStake, labels...)
+	ch <- prometheus.MustNewConstMetric(c.netEpochCreditPerStake, prometheus.GaugeValue, credits.NetworkPerStake, labels...)
 }
 
 // getClusterNodeInfo returns gossip address of node
